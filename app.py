@@ -1,11 +1,10 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import psycopg2
-import json
 from config import DB_PASSWORD
-
+ 
 app = FastAPI()
-
+ 
 def get_vessels():
     conn = psycopg2.connect(
         dbname="varmdoe_geodata",
@@ -36,11 +35,11 @@ def get_vessels():
         }
         for r in rows
     ]
-
+ 
 @app.get("/vessels")
 def vessels_endpoint():
     return get_vessels()
-
+ 
 @app.get("/", response_class=HTMLResponse)
 def map_page():
     return """
@@ -83,24 +82,25 @@ def map_page():
     </style>
 </head>
 <body>
-    <div id="hud">VÄRMDÖ VESSEL TRACKER — live AIS — updates every second</div>
+    <div id="hud">⚓ VÄRMDÖ VESSEL TRACKER — live AIS — updates every 5s</div>
     <div id="vessel-count">Loading...</div>
     <div id="map"></div>
-
+ 
 <script>
     const map = L.map('map', {
         center: [59.2, 18.6],
         zoom: 10,
         zoomControl: true
     });
-
+ 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap © CartoDB',
         maxZoom: 18
     }).addTo(map);
-
+ 
     const markers = {};
-
+    const vesselTimestamps = {};
+ 
     function createArrowIcon(heading, speed) {
         const color = speed > 5 ? '#00ffcc' : speed > 0 ? '#ffaa00' : '#ff4444';
         const svg = `
@@ -119,51 +119,76 @@ def map_page():
             iconAnchor: [12, 12]
         });
     }
-
+ 
+    function getAgeHTML(mmsi) {
+        const timestamp = vesselTimestamps[mmsi];
+        if (!timestamp) return '<span style="color:#888">⏱ unknown</span>';
+        const diff = Math.floor((new Date() - new Date(timestamp + 'Z')) / 1000);
+        if (isNaN(diff) || diff < 0) return '<span style="color:#888">⏱ unknown</span>';
+        const m = Math.floor(diff / 60);
+        const s = diff % 60;
+        const age = m > 0 ? `${m}m ${s}s ago` : `${s}s ago`;
+        const color = diff > 120 ? '#ff4444' : diff > 30 ? '#ffaa00' : '#00ffcc';
+        return `<span style="color:${color}">⏱ ${age}</span>`;
+    }
+ 
+    function buildPopup(v) {
+        return `
+            <b>${v.name || 'Unknown'}</b><br>
+            MMSI: ${v.mmsi}<br>
+            Speed: ${v.speed} knots<br>
+            Heading: ${v.heading}°<br>
+            Last seen: ${new Date(v.timestamp + 'Z').toLocaleTimeString('sv-SE')}<br>
+            <span id="age-${v.mmsi}">${getAgeHTML(v.mmsi)}</span>
+        `;
+    }
+ 
     function updateVessels() {
         fetch('/vessels')
             .then(r => r.json())
             .then(vessels => {
                 const active = new Set();
-
+ 
                 vessels.forEach(v => {
                     active.add(v.mmsi);
+                    vesselTimestamps[v.mmsi] = v.timestamp;
                     const icon = createArrowIcon(v.heading, v.speed);
-                    const popup = `
-                        <b>${v.name || 'Unknown'}</b><br>
-                        MMSI: ${v.mmsi}<br>
-                        Speed: ${v.speed} knots<br>
-                        Heading: ${v.heading}°<br>
-                        Last seen: ${v.timestamp}<br>
-                        <span id="age-${v.mmsi}">Calculating...</span>
-                    `;
-
+ 
                     if (markers[v.mmsi]) {
                         markers[v.mmsi].setLatLng([v.lat, v.lon]);
                         markers[v.mmsi].setIcon(icon);
-                        markers[v.mmsi].getPopup().setContent(popup);
+                        markers[v.mmsi].setPopupContent(buildPopup(v));
                     } else {
                         markers[v.mmsi] = L.marker([v.lat, v.lon], { icon })
-                            .bindPopup(popup)
+                            .bindPopup(buildPopup(v))
                             .addTo(map);
                     }
                 });
-
-                // Remove vessels no longer active
+ 
                 Object.keys(markers).forEach(mmsi => {
                     if (!active.has(mmsi)) {
                         map.removeLayer(markers[mmsi]);
                         delete markers[mmsi];
                     }
                 });
-
-                document.getElementById('vessel-count').textContent = 
-                    `🚢 ${vessels.length} vessels tracked`;
+ 
+                document.getElementById('vessel-count').textContent =
+                    `${vessels.length} vessels tracked`;
             });
     }
-
+ 
+    function updateAges() {
+        Object.keys(vesselTimestamps).forEach(mmsi => {
+            const el = document.getElementById(`age-${mmsi}`);
+            if (el) {
+                el.innerHTML = getAgeHTML(mmsi);
+            }
+        });
+    }
+ 
     updateVessels();
     setInterval(updateVessels, 5000);
+    setInterval(updateAges, 1000);
 </script>
 </body>
 </html>
