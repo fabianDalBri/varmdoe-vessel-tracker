@@ -178,18 +178,6 @@ def map_page():
             background: var(--border-col);
         }
 
-        #nav-stats {
-            display: flex;
-            gap: 24px;
-            flex: 1;
-        }
-
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
         .stat-value {
             font-size: 23px;
             font-weight: 700;
@@ -357,6 +345,89 @@ def map_page():
             border-top: 1px solid #eee;
             font-size: 13px;
         }
+            
+        .stat-item {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .stat-item:hover .stat-value {
+            color: var(--accent);
+        }
+
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface);
+            border: 1px solid var(--border-col);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            z-index: 2000;
+            min-width: 220px;
+            max-height: 320px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+
+        .dropdown.open { display: block; }
+
+        .dropdown-header {
+            padding: 10px 14px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-col);
+            background: var(--surface2);
+            border-radius: 8px 8px 0 0;
+        }
+
+        .dropdown-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-col);
+            transition: background 0.15s;
+        }
+
+        .dropdown-item:last-child { border-bottom: none; }
+
+        .dropdown-item:hover {
+            background: var(--surface2);
+            color: var(--navy);
+        }
+
+        [data-theme="dark"] .dropdown-item:hover { color: var(--accent-light); }
+
+        .dropdown-item .vessel-name {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+
+        .dropdown-item .vessel-speed {
+            font-size: 12px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+
+        .dropdown-empty {
+            padding: 12px 14px;
+            font-size: 13px;
+            color: var(--text-muted);
+            text-align: center;
+        }
 
         .leaflet-popup-tip-container { display: none; }
     </style>
@@ -374,21 +445,37 @@ def map_page():
 
     <div id="navbar">
     <div id="nav-stats">
-        <div class="stat-item">
+        <div class="stat-item" onclick="toggleDropdown('dd-total', event)">
             <span class="stat-value" id="stat-total">–</span>
             <span class="stat-label">Totalt</span>
+            <div class="dropdown" id="dd-total">
+                <div class="dropdown-header">Alla fartyg</div>
+                <div class="dropdown-list" id="list-total"></div>
+            </div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" onclick="toggleDropdown('dd-moving', event)">
             <span class="stat-value" id="stat-moving">–</span>
             <span class="stat-label">I rörelse</span>
+            <div class="dropdown" id="dd-moving">
+                <div class="dropdown-header">I rörelse (0–5 knop)</div>
+                <div class="dropdown-list" id="list-moving"></div>
+            </div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" onclick="toggleDropdown('dd-fast', event)">
             <span class="stat-value" id="stat-fast">–</span>
             <span class="stat-label">&gt;5 knop</span>
+            <div class="dropdown" id="dd-fast">
+                <div class="dropdown-header">Snabba fartyg (&gt;5 knop)</div>
+                <div class="dropdown-list" id="list-fast"></div>
+            </div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" onclick="toggleDropdown('dd-stationary', event)">
             <span class="stat-value" id="stat-stationary">–</span>
             <span class="stat-label">Stationära</span>
+            <div class="dropdown" id="dd-stationary">
+                <div class="dropdown-header">Stationära fartyg</div>
+                <div class="dropdown-list" id="list-stationary"></div>
+            </div>
         </div>
     </div>
 
@@ -503,6 +590,52 @@ def map_page():
             </div>
         </div>`;
     }
+    let allVessels = [];
+
+    function toggleDropdown(id, event) {
+        event.stopPropagation();
+        const dd = document.getElementById(id);
+        const isOpen = dd.classList.contains('open');
+        document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+        if (!isOpen) dd.classList.add('open');
+    }
+
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+    });
+
+    function flyToVessel(mmsi) {
+        document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+        const marker = markers[mmsi];
+        if (marker) {
+            map.flyTo(marker.getLatLng(), 14, { duration: 1.2 });
+            setTimeout(() => marker.openPopup(), 1300);
+        }
+    }
+
+    function buildDropdownList(listId, vessels) {
+        const el = document.getElementById(listId);
+        if (!vessels.length) {
+            el.innerHTML = '<div class="dropdown-empty">Inga fartyg</div>';
+            return;
+        }
+        el.innerHTML = vessels
+            .sort((a, b) => b.speed - a.speed)
+            .map(v => `
+                <div class="dropdown-item" onclick="flyToVessel('${v.mmsi}')">
+                    <span class="vessel-name">${v.name || 'Okänt'}</span>
+                    <span class="vessel-speed">${v.speed} kn</span>
+                </div>
+            `).join('');
+    }
+
+    function updateDropdowns(vessels) {
+        allVessels = vessels;
+        buildDropdownList('list-total', [...vessels]);
+        buildDropdownList('list-moving', vessels.filter(v => v.speed > 0 && v.speed <= 5));
+        buildDropdownList('list-fast', vessels.filter(v => v.speed > 5));
+        buildDropdownList('list-stationary', vessels.filter(v => v.speed === 0));
+    }
 
     function updateVessels() {
         fetch('/vessels')
@@ -536,7 +669,7 @@ def map_page():
                         delete markers[mmsi];
                     }
                 });
-
+                updateDropdowns(vessels);
                 document.getElementById('stat-total').textContent = vessels.length;
                 document.getElementById('stat-moving').textContent = moving + fast;
                 document.getElementById('stat-fast').textContent = fast;
