@@ -3,7 +3,7 @@ import websockets
 import json
 import psycopg2
 from datetime import datetime
-from config import *
+from config import DB_PASSWORD, API_KEY
 
 # Database connection
 conn = psycopg2.connect(
