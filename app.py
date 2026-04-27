@@ -117,10 +117,10 @@ def map_page():
             height: 72px;
             background: var(--surface);
             border-bottom: 3px solid var(--accent);
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
             align-items: center;
             padding: 0 28px;
-            gap: 18px;
             flex-shrink: 0;
             box-shadow: 0 2px 12px rgba(0,0,0,0.12);
             z-index: 1000;
@@ -130,7 +130,20 @@ def map_page():
             display: flex;
             align-items: center;
             gap: 14px;
-            margin-right: 28px;
+            justify-content: center;
+        }
+
+        #nav-stats {
+            display: flex;
+            gap: 24px;
+            justify-content: flex-start;
+        }
+
+        #navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: flex-end;
         }
 
         #logo-area img {
@@ -360,41 +373,40 @@ def map_page():
     </div>
 
     <div id="navbar">
-        <div id="logo-area">
-            <img src="/static/varmdoe.png" alt="Värmdö Kommun logotyp"/>
-            <div id="logo-text">
-                <span class="main">Värmdö Kommun</span>
-                <span class="sub">Fartygsövervakning · Live AIS</span>
-            </div>
+    <div id="nav-stats">
+        <div class="stat-item">
+            <span class="stat-value" id="stat-total">–</span>
+            <span class="stat-label">Totalt</span>
         </div>
-
-        <div class="nav-divider"></div>
-
-        <div id="nav-stats">
-            <div class="stat-item">
-                <span class="stat-value" id="stat-total">–</span>
-                <span class="stat-label">Totalt</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="stat-moving">–</span>
-                <span class="stat-label">I rörelse</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="stat-fast">–</span>
-                <span class="stat-label">&gt;5 knop</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="stat-stationary">–</span>
-                <span class="stat-label">Stationära</span>
-            </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-moving">–</span>
+            <span class="stat-label">I rörelse</span>
         </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-fast">–</span>
+            <span class="stat-label">&gt;5 knop</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="stat-stationary">–</span>
+            <span class="stat-label">Stationära</span>
+        </div>
+    </div>
 
+    <div id="logo-area">
+        <img src="/static/varmdoe.png" alt="Värmdö Kommun logotyp"/>
+        <div id="logo-text">
+            <span class="main">Värmdö Kommun</span>
+            <span class="sub">Fartygsövervakning · Live AIS</span>
+        </div>
+    </div>
+
+    <div id="navbar-right">
         <div id="live-badge">
             <div class="live-dot"></div>
             LIVE
         </div>
-
         <button id="theme-toggle" onclick="toggleTheme()">Mörkt läge</button>
+    </div>
     </div>
 
     <div id="map-wrap">
@@ -425,7 +437,7 @@ def map_page():
 
     const map = L.map('map', { center: [59.2, 18.6], zoom: 10, zoomControl: true });
 
-    currentTileLayer = L.tileLayer(darkTiles, {
+    currentTileLayer = L.tileLayer(lightTiles, {
         attribution: '© OpenStreetMap © CartoDB', maxZoom: 18
     }).addTo(map);
 
@@ -467,7 +479,7 @@ def map_page():
     function buildPopup(v) {
         const time = new Date(v.timestamp + 'Z').toLocaleTimeString('sv-SE');
         return `<div class="vessel-popup">
-            <div class="popup-header">⚓ ${v.name || 'Okänt fartyg'}</div>
+            <div class="popup-header">${v.name || 'Okänt fartyg'}</div>
             <div class="popup-body">
                 <div>
                     <span class="popup-field-label">MMSI</span>
