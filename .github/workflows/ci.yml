@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install dependencies
+      run: |
+        pip install flake8 fastapi psycopg2-binary geopandas requests uvicorn websockets
+
+    - name: Lint with flake8
+      run: |
+        flake8 app.py main.py --max-line-length=120 --ignore=E501,W503
+
+    - name: Check imports
+      run: |
+        python -c "from fastapi import FastAPI; from fastapi.responses import HTMLResponse; print('FastAPI OK')"
+        python -c "import psycopg2; print('psycopg2 OK')"
+        python -c "import websockets; print('websockets OK')"
